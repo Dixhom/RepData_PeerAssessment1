@@ -1,25 +1,155 @@
 ---
-title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
+title: "Peer Assessment 1, Reproducible Research, Coursera"
+date: "Sunday, January 18, 2015"
+output: html_document
 ---
 
+##Introduction
 
-## Loading and preprocessing the data
+It is now possible to collect a large amount of data about personal movement using activity monitoring devices such as a Fitbit, Nike Fuelband, or Jawbone Up. These type of devices are part of the Ågquantified selfÅh movement ??? a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. But these data remain under-utilized both because the raw data are hard to obtain and there is a lack of statistical methods and software for processing and interpreting the data.
+
+This report makes use of data from a personal activity monitoring device. This device collects data at 5 minute intervals through out the day. The data consists of two months of data from an anonymous individual collected during the months of October and November, 2012 and include the number of steps taken in 5 minute intervals each day.
+
+##Data
+
+The data for this report is in this repository.
+
+-Dataset: Activity monitoring data [52K]
+
+The variables included in this dataset are:
+
+1.steps: Number of steps taking in a 5-minute interval (missing values are coded as NA)
+
+2.date: The date on which the measurement was taken in YYYY-MM-DD format
+
+3.interval: Identifier for the 5-minute interval in which measurement was taken
+
+The dataset is stored in a comma-separated-value (CSV) file and there are a total of 17,568 observations in this dataset.
+
+##Analysis, Result and discussion
+
+###Loading and preprocessing the data.
+```{r}
+Fact <- read.csv(unz("Factivity.zip", "activity.csv"))
+```
+
+###What is mean total number of steps taken per day?
+For this part of the report, the missing values in the dataset were ignored.
+
+A histogram of the total number of steps taken each day was built.
+```{r}
+library(plyr)
+Fact.by.day <- ddply(Fact, "date", summarize, steps = sum(steps))
+hist(Fact.by.day$steps, breaks=20, 
+     main="Total number of steps taken each day",
+     xlab="Steps")
+```
+
+The mean and median total number of steps taken per day were calculated.
+```{r}
+mean(Fact.by.day$steps, na.rm=TRUE)
+median(Fact.by.day$steps, na.rm=TRUE)
+```
+
+###What is the average daily activity pattern?
+A time series plot of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis) was built.
+```{r}
+Fact.by.5min.int <- ddply(Fact, "interval", summarize, steps = mean(steps, na.rm=TRUE))
+plot(steps ~ interval ,data=Fact.by.5min.int, type="l",
+     main = "Average daily activity pattern",
+     xlab = "time [min]",
+     ylab = "Number of steps averaged across all days")
+```
+
+The 5-minute interval, on average across all the days in the dataset, which contains the maximum number of steps was below.
+```{r}
+Fact.by.5min.int$interval[which.max(Fact.by.5min.int$steps)]
+```
 
 
+###Imputing missing values
 
-## What is mean total number of steps taken per day?
+There are a number of days/intervals where there are missing values (coded as NA). The presence of missing days may introduce bias into some calculations or summaries of the data. This issue was addressed as follows.
+
+First, the total number of missing values in the dataset (i.e. the total number of rows with NAs) was calculated.
+```{r}
+table(complete.cases(Fact))["FALSE"]
+```
+
+Second, a strategy for filling in all of the missing values in the dataset was devised. Using the mean for that 5-minute interval would be appropriate. A new dataset that is equal to the original dataset but with the missing data filled in was created.
+```{r}
+na.rows <- !complete.cases(Fact)
+interval.na <- data.frame(interval = Fact$interval[na.rows])
+fillin.data <- join(interval.na, Fact.by.5min.int, by="interval")
+Fact.filledin <- Fact
+Fact.filledin$steps[na.rows] <- fillin.data$steps
+```
+
+A histogram of the total number of steps taken each day was built.
+```{r}
+Fact.filledin.by.day <- ddply(Fact.filledin, "date", summarize, steps = sum(steps))
+hist(Fact.filledin.by.day$steps, breaks=20, 
+     main="Total number of steps taken each day (NA filled in)",
+     xlab="Steps")
+```
+
+The mean and median total number of steps taken per day were calculated.
+```{r}
+mean(Fact.filledin.by.day$steps)
+median(Fact.filledin.by.day$steps)
+```
+
+The mean does not differ from the estimate above since the missing values were filled in using mean. The median is slightly different from the estimate. However, the difference is negligible. It is probably because the histogram is symmetrical and the mean and median are almost the same.
 
 
+Next, the impact of imputing missing data on the estimates of the total daily number of steps was discussed.
 
-## What is the average daily activity pattern?
+These are two histograms of the dataset with or without NA filled in.
+```{r}
+par(mfrow=c(1,2))
+hist(Fact.by.day$steps, breaks=20, 
+     main="Total number of steps \ntaken each day",
+     xlab="Steps",
+     ylim=c(0,20))
+hist(Fact.filledin.by.day$steps, breaks=20, 
+     main="Total number of steps \ntaken each day \n(NA filled in)",
+     xlab="Steps",
+     ylim=c(0,20))
+```
+
+The shapes of the histograms are almost the same, except for the tallest bin in the middle. The bin is talller in the graph with NA filled in. This is because NA was replaced with steps averaged across 5-minute interval, increasing the number of data falling into the bin.
 
 
+###Are there differences in activity patterns between weekdays and weekends?
 
-## Imputing missing values
+The dataset with the filled-in missing values was used for this part.
 
+A new factor variable in the dataset was created. It has two levels ÅgweekdayÅh and ÅgweekendÅh indicating whether a given date is a weekday or weekend day. 
+```{r}
+# Setting English locale to avoid non-English weekday names
+locale <- Sys.getlocale(category = "LC_TIME")
+Sys.setlocale("LC_TIME", locale = "English")
 
+date.posixct <- as.POSIXct(as.character(Fact$date), tz="GMT")
+dayoftheweek <- weekdays(date.posixct)
+daytype <- ifelse(dayoftheweek %in% c("Saturday", "Sunday"), "weekend", "weekday")
+Fact.filledin$daytype <- factor(daytype)
 
-## Are there differences in activity patterns between weekdays and weekends?
+# Restore locale
+Sys.setlocale("LC_TIME", locale)
+```
+
+A panel plot containing a time series plot of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all weekday days or weekend days (y-axis) was built. 
+
+```{r}
+library(lattice)
+Fact.filledin.by.5min.int <- ddply(Fact.filledin, c("interval","daytype"), summarize, steps = mean(steps))
+xyplot(steps ~ interval|daytype,
+       data=Fact.filledin.by.5min.int,
+       type="l",
+       layout=c(1,2),
+       xlab="time [min]", ylab="Number of steps averaged across all days", 
+       main="Average daily activity pattern")
+```
+
+In 500-1000 min activity is higher in weekdays. After 1000 min, however, activity is higher in weekends. One explanation would be as follows. People move a lot in the morning of weekdays due to commuting. However, they don't do a lot of activity in their schools or offices. On the other hand, people don't have to move much in the morning of weekend. Moreover, they tend to go out for hanging around with friends, watching movies, having sightseeing or so on, increasing the number of steps.
